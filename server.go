@@ -2,6 +2,7 @@ package main
 
 import (
 	authlib "github.com/clawio/service.auth/lib"
+	authpb "github.com/clawio/service.auth/proto"
 	metapb "github.com/clawio/service.localstore.meta/proto"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
@@ -101,16 +102,51 @@ func (s *server) authHandler(ctx context.Context, w http.ResponseWriter, r *http
 	next func(ctx context.Context, w http.ResponseWriter, r *http.Request)) {
 
 	idt, err := s.getIdentityFromReq(r)
-	if err != nil {
-		// TODO(labkode) add call to auth service with Basic Auth params if found
-		//log.Error(err)
-		http.Error(w, "", http.StatusUnauthorized)
-		return
-	}
+	if err == nil {
+		ctx = authlib.NewContext(ctx, idt)
+		ctx = authlib.NewTokenContext(ctx, s.getTokenFromReq(r))
+		next(ctx, w, r)
+	} else {
+		// Authenticate againsts auth service
+		// if basic credentials are found
+		user, pass, ok := r.BasicAuth()
+		if !ok {
+			log.Error(err)
+			http.Error(w, "", http.StatusUnauthorized)
+			return
+		}
 
-	ctx = authlib.NewContext(ctx, idt)
-	ctx = authlib.NewTokenContext(ctx, s.getTokenFromReq(r))
-	next(ctx, w, r)
+		con, err := getConnection(s.p.authServer)
+		if err != nil {
+			log.Error(err)
+			http.Error(w, "", http.StatusInternalServerError)
+			return
+		}
+
+		client := authpb.NewAuthClient(con)
+
+		in := &authpb.AuthRequest{}
+		in.Username = user
+		in.Password = pass
+
+		res, err := client.Authenticate(ctx, in)
+		if err != nil {
+			log.Error(err)
+			http.Error(w, "", http.StatusUnauthorized)
+			return
+		}
+
+		idt, err := authlib.ParseToken(res.Token, s.p.sharedSecret)
+		if err != nil {
+			log.Error(err)
+			http.Error(w, "", http.StatusUnauthorized)
+			return
+		}
+
+		ctx = authlib.NewContext(ctx, idt)
+		ctx = authlib.NewTokenContext(ctx, res.Token)
+		next(ctx, w, r)
+	}
 }
 
 func (s *server) getTokenFromReq(r *http.Request) string {

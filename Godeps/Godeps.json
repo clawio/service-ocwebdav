@@ -7,6 +7,10 @@
 			"Rev": "46b88e0873a87da680ff30911274f657d2f232e2"
 		},
 		{
+			"ImportPath": "github.com/clawio/service.auth/proto",
+			"Rev": "46b88e0873a87da680ff30911274f657d2f232e2"
+		},
+		{
 			"ImportPath": "github.com/clawio/service.localstore.meta/proto",
 			"Rev": "4cad979a9f99ef71e5d2b8a40b33bdd665076933"
 		},

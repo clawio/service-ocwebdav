@@ -2,6 +2,7 @@ FROM golang:1.5
 MAINTAINER Hugo González Labrador
 
 ENV CLAWIO_OCWEBDAV_PORT 57004
+ENV CLAWIO_OCWEBDAV_AUTH "service-auth:57000"
 ENV CLAWIO_OCWEBDAV_META "service-localstore-meta:57001"
 ENV CLAWIO_OCWEBDAV_DATA "service-localstore-data:57002"
 ENV CLAWIO_SHAREDSECRET secret
