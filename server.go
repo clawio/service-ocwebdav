@@ -6,6 +6,8 @@ import (
 	metapb "github.com/clawio/service.localstore.meta/proto"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"net/http"
 	"strings"
 )
@@ -71,10 +73,20 @@ func (s *server) propfind(ctx context.Context, w http.ResponseWriter, r *http.Re
 
 	meta, err := client.Stat(ctx, in)
 	if err != nil {
-		// TODO(labkode) Switch grpc error codes for correct HTTP codes
 		log.Error(err)
-		http.Error(w, "", http.StatusInternalServerError)
-		return
+
+		gErr := grpc.Code(err)
+		switch {
+		case gErr == codes.NotFound:
+			http.Error(w, "", http.StatusNotFound)
+			return
+		case gErr == codes.PermissionDenied:
+			http.Error(w, "", http.StatusForbidden)
+			return
+		default:
+			http.Error(w, "", http.StatusInternalServerError)
+			return
+		}
 	}
 
 	xml, err := metaToXML(meta)
@@ -107,11 +119,12 @@ func (s *server) authHandler(ctx context.Context, w http.ResponseWriter, r *http
 		ctx = authlib.NewTokenContext(ctx, s.getTokenFromReq(r))
 		next(ctx, w, r)
 	} else {
-		// Authenticate againsts auth service
+		// Authenticate against auth service
 		// if basic credentials are found
 		user, pass, ok := r.BasicAuth()
 		if !ok {
-			log.Error(err)
+			log.Error("no credentials found in request")
+			w.Header().Set("WWW-Authenticate", "Basic Realm='ClawIO credentials'")
 			http.Error(w, "", http.StatusUnauthorized)
 			return
 		}
@@ -132,14 +145,21 @@ func (s *server) authHandler(ctx context.Context, w http.ResponseWriter, r *http
 		res, err := client.Authenticate(ctx, in)
 		if err != nil {
 			log.Error(err)
-			http.Error(w, "", http.StatusUnauthorized)
+
+			if grpc.Code(err) == codes.Unauthenticated {
+				w.Header().Set("WWW-Authenticate", "Basic Realm='ClawIO credentials'")
+				http.Error(w, "", http.StatusUnauthorized)
+				return
+			}
+
+			http.Error(w, "", http.StatusInternalServerError)
 			return
 		}
 
 		idt, err := authlib.ParseToken(res.Token, s.p.sharedSecret)
 		if err != nil {
 			log.Error(err)
-			http.Error(w, "", http.StatusUnauthorized)
+			http.Error(w, "", http.StatusInternalServerError)
 			return
 		}
 
