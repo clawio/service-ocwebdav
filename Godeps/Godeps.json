@@ -1,0 +1,52 @@
+{
+	"ImportPath": "github.com/clawio/service.ocwebdav",
+	"GoVersion": "go1.5",
+	"Deps": [
+		{
+			"ImportPath": "github.com/clawio/service.auth/lib",
+			"Rev": "46b88e0873a87da680ff30911274f657d2f232e2"
+		},
+		{
+			"ImportPath": "github.com/clawio/service.localstore.meta/proto",
+			"Rev": "4cad979a9f99ef71e5d2b8a40b33bdd665076933"
+		},
+		{
+			"ImportPath": "github.com/dgrijalva/jwt-go",
+			"Comment": "v2.3.0-3-g3b55c4a",
+			"Rev": "3b55c4adf0c509e95f815b0cbb36424c7d49c73c"
+		},
+		{
+			"ImportPath": "github.com/golang/protobuf/proto",
+			"Rev": "5baca1b63153b1a82014546382edbdd302b138b6"
+		},
+		{
+			"ImportPath": "github.com/rs/xhandler",
+			"Rev": "8431b30f293907f6613667c03df1f089e0fb8741"
+		},
+		{
+			"ImportPath": "github.com/sirupsen/logrus",
+			"Comment": "v0.8.6-13-g84b968c",
+			"Rev": "84b968cb9f82d727044973f8255489bbe15e9948"
+		},
+		{
+			"ImportPath": "golang.org/x/net/context",
+			"Rev": "b4e17d61b15679caf2335da776c614169a1b4643"
+		},
+		{
+			"ImportPath": "golang.org/x/net/http2",
+			"Rev": "b4e17d61b15679caf2335da776c614169a1b4643"
+		},
+		{
+			"ImportPath": "golang.org/x/net/internal/timeseries",
+			"Rev": "b4e17d61b15679caf2335da776c614169a1b4643"
+		},
+		{
+			"ImportPath": "golang.org/x/net/trace",
+			"Rev": "b4e17d61b15679caf2335da776c614169a1b4643"
+		},
+		{
+			"ImportPath": "google.golang.org/grpc",
+			"Rev": "1f1a4999ca75ba4fd6d5c91233383a170034a1a5"
+		}
+	]
+}
