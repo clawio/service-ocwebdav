@@ -63,11 +63,12 @@ func (s *server) ServeHTTPC(ctx context.Context, w http.ResponseWriter, r *http.
 		s.authHandler(ctx, w, r, s.head)
 	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "PROPFIND" {
 		s.authHandler(ctx, w, r, s.propfind)
-		s.authHandler(ctx, w, r, s.propfind)
 	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "GET" {
 		s.authHandler(ctx, w, r, s.get)
 	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "PUT" {
 		s.authHandler(ctx, w, r, s.put)
+	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "LOCK" {
+		s.authHandler(ctx, w, r, s.lock)
 	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "OPTIONS" {
 		s.authHandler(ctx, w, r, s.options)
 	} else {
@@ -186,6 +187,34 @@ func (s *server) head(ctx context.Context, w http.ResponseWriter, r *http.Reques
 	t := time.Unix(int64(meta.Modified), 0)
 	lastModifiedString := t.Format(time.RFC1123)
 	w.Header().Set("Last-Modified", lastModifiedString)
+}
+
+func (s *server) lock(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+
+	logger := MustFromLogContext(ctx).WithField("op", "lock")
+
+	p := getPathFromReq(r)
+
+	logger.Infof("path is %s", p)
+
+	xml := `<?xml version="1.0" encoding="utf-8"?>
+	<prop xmlns="DAV:">
+		<lockdiscovery>
+			<activelock>
+				<allprop/>
+				<timeout>Second-604800</timeout>
+				<depth>Infinity</depth>
+				<locktoken>
+				<href>opaquelocktoken:00000000-0000-0000-0000-000000000000</href>
+				</locktoken>
+			</activelock>
+		</lockdiscovery>
+	</prop>`
+
+	w.Header().Set("Content-Type", "text/xml; charset=\"utf-8\"")
+	w.Header().Set("Lock-Token",
+		"opaquelocktoken:00000000-0000-0000-0000-000000000000")
+	w.Write([]byte(xml))
 }
 
 func (s *server) propfind(ctx context.Context, w http.ResponseWriter, r *http.Request) {
