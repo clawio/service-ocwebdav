@@ -59,7 +59,10 @@ func (s *server) ServeHTTPC(ctx context.Context, w http.ResponseWriter, r *http.
 		s.status(ctx, w, r)
 	} else if strings.HasPrefix(r.URL.Path, capabilitiesURL) && strings.ToUpper(r.Method) == "GET" {
 		s.capabilities(ctx, w, r)
+	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "HEAD" {
+		s.authHandler(ctx, w, r, s.head)
 	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "PROPFIND" {
+		s.authHandler(ctx, w, r, s.propfind)
 		s.authHandler(ctx, w, r, s.propfind)
 	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "GET" {
 		s.authHandler(ctx, w, r, s.get)
@@ -146,6 +149,43 @@ func (s *server) status(ctx context.Context, w http.ResponseWriter, r *http.Requ
 	w.Header().Add("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write(statusJSON)
+}
+
+func (s *server) head(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+
+	logger := MustFromLogContext(ctx).WithField("op", "head")
+
+	p := getPathFromReq(r)
+
+	logger.Info("path is %s", p)
+
+	meta, err := getMeta(ctx, s.p.metaServer, p, false)
+	if err != nil {
+		logger.Error(err)
+
+		gErr := grpc.Code(err)
+		switch {
+		case gErr == codes.NotFound:
+			http.Error(w, "", http.StatusNotFound)
+			return
+		case gErr == codes.PermissionDenied:
+			http.Error(w, "", http.StatusForbidden)
+			return
+		default:
+			http.Error(w, "", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	logger.Infof("meta is %s", meta)
+
+	w.Header().Set("Content-Type", meta.MimeType)
+	w.Header().Set("ETag", meta.Etag)
+	w.Header().Set("OC-FileId", meta.Id)
+	w.Header().Set("OC-ETag", meta.Etag)
+	t := time.Unix(int64(meta.Modified), 0)
+	lastModifiedString := t.Format(time.RFC1123)
+	w.Header().Set("Last-Modified", lastModifiedString)
 }
 
 func (s *server) propfind(ctx context.Context, w http.ResponseWriter, r *http.Request) {
