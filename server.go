@@ -5,6 +5,7 @@ import (
 	"fmt"
 	authlib "github.com/clawio/service.auth/lib"
 	authpb "github.com/clawio/service.auth/proto"
+	metapb "github.com/clawio/service.localstore.meta/proto"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -71,10 +72,51 @@ func (s *server) ServeHTTPC(ctx context.Context, w http.ResponseWriter, r *http.
 		s.authHandler(ctx, w, r, s.lock)
 	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "OPTIONS" {
 		s.authHandler(ctx, w, r, s.options)
+	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "MKCOL" {
+		s.authHandler(ctx, w, r, s.mkcol)
 	} else {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
+}
+
+func (s *server) mkcol(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+
+	logger := MustFromLogContext(ctx).WithField("op", "mkcol")
+
+	p := getPathFromReq(r)
+
+	logger.Infof("path is %s", p)
+
+	con, err := getConnection(s.p.metaServer)
+	if err != nil {
+		logger.Error(err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	client := metapb.NewLocalClient(con)
+
+	in := &metapb.MkdirReq{}
+	in.AccessToken = authlib.MustFromTokenContext(ctx)
+	in.Path = p
+
+	_, err = client.Mkdir(ctx, in)
+	if err != nil {
+		logger.Error(err)
+
+		gErr := grpc.Code(err)
+		switch {
+		case gErr == codes.PermissionDenied:
+			http.Error(w, "", http.StatusForbidden)
+			return
+		default:
+			http.Error(w, "", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	w.WriteHeader(http.StatusCreated)
 }
 
 func (s *server) capabilities(ctx context.Context, w http.ResponseWriter, r *http.Request) {
