@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	authlib "github.com/clawio/service.auth/lib"
-	authpb "github.com/clawio/service.auth/proto"
-	metapb "github.com/clawio/service.localstore.meta/proto"
+	authpb "github.com/clawio/service.ocwebdav/proto/auth"
+	metapb "github.com/clawio/service.ocwebdav/proto/metadata"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -97,7 +97,7 @@ func (s *server) mkcol(ctx context.Context, w http.ResponseWriter, r *http.Reque
 
 	defer con.Close()
 
-	client := metapb.NewLocalClient(con)
+	client := metapb.NewMetaClient(con)
 
 	in := &metapb.MkdirReq{}
 	in.AccessToken = authlib.MustFromTokenContext(ctx)

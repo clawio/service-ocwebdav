@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-package localstore;
+package metadata;
 
-service Local {
+service Meta {
     rpc Home(HomeReq) returns (Void) {}
     rpc Mkdir(MkdirReq) returns (Void) {}
     rpc Stat(StatReq) returns (Metadata) {}

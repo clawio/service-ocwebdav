@@ -3,7 +3,7 @@ package main
 import (
 	"code.google.com/p/go-uuid/uuid"
 	authlib "github.com/clawio/service.auth/lib"
-	metapb "github.com/clawio/service.localstore.meta/proto"
+	metapb "github.com/clawio/service.ocwebdav/proto/metadata"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -26,7 +26,7 @@ func getMeta(ctx context.Context, addr, p string, children bool) (*metapb.Metada
 
 	defer con.Close()
 
-	client := metapb.NewLocalClient(con)
+	client := metapb.NewMetaClient(con)
 
 	meta, err := client.Stat(ctx, in)
 	if err != nil {
