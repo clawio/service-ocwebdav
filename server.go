@@ -9,9 +9,8 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"io"
 	"net/http"
-	"net/http/httputil"
-	"net/url"
 	"path"
 	"strings"
 	"time"
@@ -227,21 +226,39 @@ func (s *server) get(ctx context.Context, w http.ResponseWriter, r *http.Request
 
 	logger.Infof("meta is %s", meta)
 
-	w.Header().Set("Content-Type", meta.MimeType)
-	w.Header().Set("ETag", meta.Etag)
-	t := time.Unix(int64(meta.Modified), 0)
-	lastModifiedString := t.Format(time.RFC1123)
-	w.Header().Set("Last-Modified", lastModifiedString)
+	c := &http.Client{}
+	req, err := http.NewRequest("GET", s.p.dataServer+p, nil)
+	if err != nil {
+		logger.Error(err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
 
-	u, err := url.Parse(s.p.dataServer)
+	req.Header.Add("Authorization", "Bearer "+authlib.MustFromTokenContext(ctx))
+
+	res, err := c.Do(req)
 	if err != nil {
 		log.Error(err)
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
 
-	proxy := httputil.NewSingleHostReverseProxy(u)
-	proxy.ServeHTTP(w, r)
+	defer res.Body.Close()
+
+	if res.StatusCode != 200 {
+		http.Error(w, "", res.StatusCode)
+		return
+	}
+
+	w.Header().Set("Content-Type", meta.MimeType)
+	w.Header().Set("ETag", meta.Etag)
+	w.Header().Set("OC-FileId", meta.Id)
+	w.Header().Set("OC-ETag", meta.Etag)
+	t := time.Unix(int64(meta.Modified), 0)
+	lastModifiedString := t.Format(time.RFC1123)
+	w.Header().Set("Last-Modified", lastModifiedString)
+
+	io.Copy(w, res.Body)
 }
 
 func (s *server) put(ctx context.Context, w http.ResponseWriter, r *http.Request) {
