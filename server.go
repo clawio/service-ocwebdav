@@ -95,6 +95,8 @@ func (s *server) mkcol(ctx context.Context, w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	defer con.Close()
+
 	client := metapb.NewLocalClient(con)
 
 	in := &metapb.MkdirReq{}

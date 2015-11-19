@@ -24,6 +24,8 @@ func getMeta(ctx context.Context, addr, p string, children bool) (*metapb.Metada
 		return nil, err
 	}
 
+	defer con.Close()
+
 	client := metapb.NewLocalClient(con)
 
 	meta, err := client.Stat(ctx, in)
@@ -47,7 +49,6 @@ func getConnection(addr string) (*grpc.ClientConn, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return con, nil
 }
 
