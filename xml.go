@@ -107,7 +107,7 @@ func metaToPropResponse(meta *metapb.Metadata) (*responseXML, error) {
 
 	response := responseXML{}
 
-	response.Href = path.Join("/", meta.Path)
+	response.Href = path.Join(remoteURL, meta.Path)
 
 	response.Propstat = propStatList
 

@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/rs/xhandler"
-	"log"
+	log "github.com/sirupsen/logrus"
 	"net/http"
 	"os"
 	"strconv"
@@ -42,26 +42,25 @@ func getEnviron() (*environ, error) {
 	return e, nil
 }
 
-func printEnviron(e *environ) {
-	log.Printf("%s=%s", authServerEnvar, e.authServer)
-	log.Printf("%s=%s", dataServerEnvar, e.dataServer)
-	log.Printf("%s=%s", metaServerEnvar, e.metaServer)
-	log.Printf("%s=%d\n", portEnvar, e.port)
-	log.Printf("%s=%s\n", sharedSecretEnvar, "******")
-}
-
 func main() {
 
-	log.Printf("Service %s started", serviceID)
+	ctxLogger := log.WithField("service", serviceID)
+	ctxLogger.Info("Service started")
 
 	env, err := getEnviron()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		ctxLogger.Error(err)
 		os.Exit(1)
 	}
 
-	printEnviron(env)
+	ctxLogger.Infof("%s=%s", authServerEnvar, env.authServer)
+	ctxLogger.Infof("%s=%s", dataServerEnvar, env.dataServer)
+	ctxLogger.Infof("%s=%s", metaServerEnvar, env.metaServer)
+	ctxLogger.Infof("%s=%d\n", portEnvar, env.port)
+	ctxLogger.Infof("%s=%s\n", sharedSecretEnvar, "******")
+
 	p := &newServerParams{}
+	p.logger = ctxLogger
 	p.authServer = env.authServer
 	p.dataServer = env.dataServer
 	p.metaServer = env.metaServer
@@ -69,7 +68,7 @@ func main() {
 
 	srv, err := newServer(p)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		ctxLogger.Error(err)
 		os.Exit(1)
 	}
 
@@ -77,5 +76,5 @@ func main() {
 	c.UseC(xhandler.CloseHandler)
 
 	http.Handle(endPoint, c.Handler(srv))
-	fmt.Fprintln(os.Stderr, http.ListenAndServe(fmt.Sprintf(":%d", env.port), nil))
+	ctxLogger.Error(http.ListenAndServe(fmt.Sprintf(":%d", env.port), nil))
 }
