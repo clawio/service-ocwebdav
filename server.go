@@ -481,6 +481,8 @@ func (s *server) authHandler(ctx context.Context, w http.ResponseWriter, r *http
 			return
 		}
 
+		defer con.Close()
+
 		logger.Infof("connected to %s", s.p.authServer)
 
 		client := authpb.NewAuthClient(con)
