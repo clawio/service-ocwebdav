@@ -44,23 +44,19 @@ func getEnviron() (*environ, error) {
 
 func main() {
 
-	ctxLogger := log.WithField("service", serviceID)
-	ctxLogger.Info("Service started")
-
 	env, err := getEnviron()
 	if err != nil {
-		ctxLogger.Error(err)
+		log.Error(err)
 		os.Exit(1)
 	}
 
-	ctxLogger.Infof("%s=%s", authServerEnvar, env.authServer)
-	ctxLogger.Infof("%s=%s", dataServerEnvar, env.dataServer)
-	ctxLogger.Infof("%s=%s", metaServerEnvar, env.metaServer)
-	ctxLogger.Infof("%s=%d\n", portEnvar, env.port)
-	ctxLogger.Infof("%s=%s\n", sharedSecretEnvar, "******")
+	log.Infof("%s=%s", authServerEnvar, env.authServer)
+	log.Infof("%s=%s", dataServerEnvar, env.dataServer)
+	log.Infof("%s=%s", metaServerEnvar, env.metaServer)
+	log.Infof("%s=%d\n", portEnvar, env.port)
+	log.Infof("%s=%s\n", sharedSecretEnvar, "******")
 
 	p := &newServerParams{}
-	p.logger = ctxLogger
 	p.authServer = env.authServer
 	p.dataServer = env.dataServer
 	p.metaServer = env.metaServer
@@ -68,7 +64,7 @@ func main() {
 
 	srv, err := newServer(p)
 	if err != nil {
-		ctxLogger.Error(err)
+		log.Error(err)
 		os.Exit(1)
 	}
 
@@ -76,5 +72,5 @@ func main() {
 	c.UseC(xhandler.CloseHandler)
 
 	http.Handle(endPoint, c.Handler(srv))
-	ctxLogger.Error(http.ListenAndServe(fmt.Sprintf(":%d", env.port), nil))
+	log.Error(http.ListenAndServe(fmt.Sprintf(":%d", env.port), nil))
 }

@@ -28,7 +28,6 @@ var (
 )
 
 type newServerParams struct {
-	logger       *log.Entry
 	authServer   string
 	dataServer   string
 	metaServer   string
@@ -51,7 +50,7 @@ type server struct {
 func (s *server) ServeHTTPC(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 
 	// custom logger
-	reqLogger := s.p.logger.WithField("trace", getTraceID(r))
+	reqLogger := log.WithField("trace", getTraceID(r))
 	ctx = NewLogContext(ctx, reqLogger)
 
 	reqLogger.Info(r.URL.Path, getPathFromReq(r))
