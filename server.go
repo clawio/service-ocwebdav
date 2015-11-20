@@ -57,22 +57,31 @@ func (s *server) ServeHTTPC(ctx context.Context, w http.ResponseWriter, r *http.
 	reqLogger.WithField("url", r.URL.String())
 
 	if strings.HasPrefix(r.URL.Path, statusURL) && strings.ToUpper(r.Method) == "GET" {
+		reqLogger.WithField("op", "status")
 		s.status(ctx, w, r)
 	} else if strings.HasPrefix(r.URL.Path, capabilitiesURL) && strings.ToUpper(r.Method) == "GET" {
+		reqLogger.WithField("op", "capabilities")
 		s.capabilities(ctx, w, r)
 	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "HEAD" {
+		reqLogger.WithField("op", "head")
 		s.authHandler(ctx, w, r, s.head)
 	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "PROPFIND" {
+		reqLogger.WithField("op", "propfind")
 		s.authHandler(ctx, w, r, s.propfind)
 	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "GET" {
+		reqLogger.WithField("op", "get")
 		s.authHandler(ctx, w, r, s.get)
 	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "PUT" {
+		reqLogger.WithField("op", "put")
 		s.authHandler(ctx, w, r, s.put)
 	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "LOCK" {
+		reqLogger.WithField("op", "log")
 		s.authHandler(ctx, w, r, s.lock)
 	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "OPTIONS" {
+		reqLogger.WithField("op", "options")
 		s.authHandler(ctx, w, r, s.options)
 	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "MKCOL" {
+		reqLogger.WithField("op", "mkcol")
 		s.authHandler(ctx, w, r, s.mkcol)
 	} else {
 		w.WriteHeader(http.StatusNotFound)
@@ -82,7 +91,7 @@ func (s *server) ServeHTTPC(ctx context.Context, w http.ResponseWriter, r *http.
 
 func (s *server) mkcol(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 
-	logger := MustFromLogContext(ctx).WithField("op", "mkcol")
+	logger := MustFromLogContext(ctx)
 
 	p := getPathFromReq(r)
 
@@ -348,6 +357,7 @@ func (s *server) get(ctx context.Context, w http.ResponseWriter, r *http.Request
 	}
 
 	req.Header.Add("Authorization", "Bearer "+authlib.MustFromTokenContext(ctx))
+	req.Header.Add("CIO-TraceID", logger.Data["trace"].(string))
 
 	res, err := c.Do(req)
 	if err != nil {
@@ -392,6 +402,7 @@ func (s *server) put(ctx context.Context, w http.ResponseWriter, r *http.Request
 
 	req.Header.Add("Authorization", "Bearer "+authlib.MustFromTokenContext(ctx))
 	req.Header.Add("CIO-Checksum", r.Header.Get("CIO-Checksum"))
+	req.Header.Add("CIO-TraceID", logger.Data["trace"].(string))
 
 	res, err := c.Do(req)
 	if err != nil {
