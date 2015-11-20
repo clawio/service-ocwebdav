@@ -49,11 +49,12 @@ type server struct {
 
 func (s *server) ServeHTTPC(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 
-	// custom logger
-	reqLogger := log.WithField("trace", getTraceID(r))
+	traceID := getTraceID(r)
+	reqLogger := log.WithField("trace", traceID)
 	ctx = NewLogContext(ctx, reqLogger)
+	ctx = newGRPCTraceContext(ctx, traceID)
 
-	reqLogger.Info(r.URL.Path, getPathFromReq(r))
+	reqLogger.WithField("url", r.URL.String())
 
 	if strings.HasPrefix(r.URL.Path, statusURL) && strings.ToUpper(r.Method) == "GET" {
 		s.status(ctx, w, r)
@@ -221,7 +222,7 @@ func (s *server) head(ctx context.Context, w http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	logger.Infof("meta is %s", meta)
+	logger.Debugf("meta is %s", meta)
 
 	w.Header().Set("Content-Type", meta.MimeType)
 	w.Header().Set("ETag", meta.Etag)
@@ -293,7 +294,7 @@ func (s *server) propfind(ctx context.Context, w http.ResponseWriter, r *http.Re
 		}
 	}
 
-	logger.Infof("meta is %s", meta)
+	logger.Debugf("meta is %s", meta)
 
 	xml, err := metaToXML(meta)
 	if err != nil {
@@ -336,7 +337,7 @@ func (s *server) get(ctx context.Context, w http.ResponseWriter, r *http.Request
 		}
 	}
 
-	logger.Infof("meta is %s", meta)
+	logger.Debugf("meta is %s", meta)
 
 	c := &http.Client{}
 	req, err := http.NewRequest("GET", s.p.dataServer+p, nil)
@@ -430,7 +431,7 @@ func (s *server) options(ctx context.Context, w http.ResponseWriter, r *http.Req
 		}
 	}
 
-	logger.Infof("meta is %s", meta)
+	logger.Debugf("meta is %s", meta)
 
 	allow := "OPTIONS, LOCK, GET, HEAD, POST, DELETE, PROPPATCH, COPY,"
 	allow += " MOVE, UNLOCK, PROPFIND"

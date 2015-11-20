@@ -7,6 +7,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
+	metadata "google.golang.org/grpc/metadata"
 	"net/http"
 	"path"
 	"strings"
@@ -113,4 +114,29 @@ func getTokenFromReq(r *http.Request) string {
 	}
 
 	return token
+}
+
+func newGRPCTraceContext(ctx context.Context, trace string) context.Context {
+	md := metadata.Pairs("trace", trace)
+	ctx = metadata.NewContext(ctx, md)
+	return ctx
+}
+
+func getGRPCTraceID(ctx context.Context) string {
+
+	md, ok := metadata.FromContext(ctx)
+	if !ok {
+		return uuid.New()
+	}
+
+	tokens := md["trace"]
+	if len(tokens) == 0 {
+		return uuid.New()
+	}
+
+	if tokens[0] != "" {
+		return tokens[0]
+	}
+
+	return uuid.New()
 }
