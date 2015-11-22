@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"io"
 	"net/http"
+	"net/url"
 	"path"
 	"strings"
 	"time"
@@ -146,7 +147,14 @@ func (s *server) move(ctx context.Context, w http.ResponseWriter, r *http.Reques
 	logger := MustFromLogContext(ctx)
 
 	src := getPathFromReq(r)
-	dst := path.Clean(r.Header.Get("Destination"))
+	u, err := url.Parse(r.Header.Get("Destination"))
+	if err != nil {
+		logger.Error(err)
+		http.Error(w, "", http.StatusBadRequest)
+		return
+	}
+
+	dst := path.Clean(strings.TrimPrefix(u.Path, remoteURL))
 	if dst == "" {
 		http.Error(w, "", http.StatusBadRequest)
 		return
@@ -186,6 +194,31 @@ func (s *server) move(ctx context.Context, w http.ResponseWriter, r *http.Reques
 		}
 	}
 
+	meta, err := getMeta(ctx, s.p.metaServer, dst, false)
+	if err != nil {
+		logger.Error(err)
+
+		gErr := grpc.Code(err)
+		switch {
+		case gErr == codes.NotFound:
+			http.Error(w, "", http.StatusNotFound)
+			return
+		case gErr == codes.PermissionDenied:
+			http.Error(w, "", http.StatusForbidden)
+			return
+		default:
+			http.Error(w, "", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	w.Header().Set("ETag", meta.Etag)
+	w.Header().Set("OC-FileId", meta.Id)
+	w.Header().Set("OC-ETag", meta.Etag)
+	t := time.Unix(int64(meta.Modified), 0)
+	lastModifiedString := t.Format(time.RFC1123)
+	w.Header().Set("Last-Modified", lastModifiedString)
+
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -194,7 +227,14 @@ func (s *server) copy(ctx context.Context, w http.ResponseWriter, r *http.Reques
 	logger := MustFromLogContext(ctx)
 
 	src := getPathFromReq(r)
-	dst := path.Clean(r.Header.Get("Destination"))
+	u, err := url.Parse(r.Header.Get("Destination"))
+	if err != nil {
+		logger.Error(err)
+		http.Error(w, "", http.StatusBadRequest)
+		return
+	}
+
+	dst := path.Clean(strings.TrimPrefix(u.Path, remoteURL))
 	if dst == "" {
 		http.Error(w, "", http.StatusBadRequest)
 		return
@@ -466,6 +506,7 @@ func (s *server) propfind(ctx context.Context, w http.ResponseWriter, r *http.Re
 	w.Header().Set("DAV", "1, 3, extended-mkcol")
 	w.Header().Set("ETag", meta.Etag)
 	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(xml)))
 	w.WriteHeader(207)
 
 	w.Write(xml)

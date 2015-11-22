@@ -72,14 +72,15 @@ func metaToPropResponse(meta *metapb.Metadata) (*responseXML, error) {
 		xml.Name{Space: "", Local: "d:getcontenttype"},
 		"", []byte(meta.MimeType)}
 
-	if meta.IsContainer {
-		getResourceType := propertyXML{
-			xml.Name{Space: "", Local: "d:resourcetype"},
-			"", []byte("<d:collection/>")}
+	getResourceType := propertyXML{
+		xml.Name{Space: "", Local: "d:resourcetype"},
+		"", []byte("")}
 
+	if meta.IsContainer {
+		getResourceType.InnerXML = []byte("<d:collection/>")
 		getContentType.InnerXML = []byte("inode/container")
-		propList = append(propList, getResourceType)
 	}
+	propList = append(propList, getResourceType)
 
 	ocID := propertyXML{xml.Name{Space: "", Local: "oc:id"}, "",
 		[]byte(meta.Id)}
@@ -108,6 +109,9 @@ func metaToPropResponse(meta *metapb.Metadata) (*responseXML, error) {
 	response := responseXML{}
 
 	response.Href = path.Join(remoteURL, meta.Path)
+	if meta.IsContainer {
+		response.Href = path.Join(remoteURL, meta.Path) + "/"
+	}
 
 	response.Propstat = propStatList
 
