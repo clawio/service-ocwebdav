@@ -54,34 +54,34 @@ func (s *server) ServeHTTPC(ctx context.Context, w http.ResponseWriter, r *http.
 	ctx = NewLogContext(ctx, reqLogger)
 	ctx = newGRPCTraceContext(ctx, traceID)
 
-	reqLogger.WithField("url", r.URL.String())
+	reqLogger.WithField("url", r.URL.String()).Info()
 
 	if strings.HasPrefix(r.URL.Path, statusURL) && strings.ToUpper(r.Method) == "GET" {
-		reqLogger.WithField("op", "status")
+		reqLogger.WithField("op", "status").Info()
 		s.status(ctx, w, r)
 	} else if strings.HasPrefix(r.URL.Path, capabilitiesURL) && strings.ToUpper(r.Method) == "GET" {
-		reqLogger.WithField("op", "capabilities")
+		reqLogger.WithField("op", "capabilities").Info()
 		s.capabilities(ctx, w, r)
 	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "HEAD" {
-		reqLogger.WithField("op", "head")
+		reqLogger.WithField("op", "head").Info()
 		s.authHandler(ctx, w, r, s.head)
 	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "PROPFIND" {
-		reqLogger.WithField("op", "propfind")
+		reqLogger.WithField("op", "propfind").Info()
 		s.authHandler(ctx, w, r, s.propfind)
 	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "GET" {
-		reqLogger.WithField("op", "get")
+		reqLogger.WithField("op", "get").Info()
 		s.authHandler(ctx, w, r, s.get)
 	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "PUT" {
-		reqLogger.WithField("op", "put")
+		reqLogger.WithField("op", "put").Info()
 		s.authHandler(ctx, w, r, s.put)
 	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "LOCK" {
-		reqLogger.WithField("op", "log")
+		reqLogger.WithField("op", "lock").Info()
 		s.authHandler(ctx, w, r, s.lock)
 	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "OPTIONS" {
-		reqLogger.WithField("op", "options")
+		reqLogger.WithField("op", "options").Info()
 		s.authHandler(ctx, w, r, s.options)
 	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "MKCOL" {
-		reqLogger.WithField("op", "mkcol")
+		reqLogger.WithField("op", "mkcol").Info()
 		s.authHandler(ctx, w, r, s.mkcol)
 	} else {
 		w.WriteHeader(http.StatusNotFound)
