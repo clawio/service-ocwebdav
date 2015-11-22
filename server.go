@@ -86,10 +86,155 @@ func (s *server) ServeHTTPC(ctx context.Context, w http.ResponseWriter, r *http.
 	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "MKCOL" {
 		reqLogger.WithField("op", "proppatch").Info()
 		s.authHandler(ctx, w, r, s.proppatch)
+	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "COPY" {
+		reqLogger.WithField("op", "copy").Info()
+		s.authHandler(ctx, w, r, s.copy)
+	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "MOVE" {
+		reqLogger.WithField("op", "move").Info()
+		s.authHandler(ctx, w, r, s.move)
+	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "DELETE" {
+		reqLogger.WithField("op", "delete").Info()
+		s.authHandler(ctx, w, r, s.delete)
 	} else {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
+}
+
+func (s *server) delete(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+
+	logger := MustFromLogContext(ctx)
+
+	p := getPathFromReq(r)
+
+	logger.Infof("path is %s", p)
+
+	con, err := getConnection(s.p.metaServer)
+	if err != nil {
+		logger.Error(err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	defer con.Close()
+
+	client := metapb.NewMetaClient(con)
+
+	in := &metapb.RmReq{}
+	in.Path = p
+	in.AccessToken = authlib.MustFromTokenContext(ctx)
+
+	_, err = client.Rm(ctx, in)
+	if err != nil {
+		logger.Error(err)
+
+		gErr := grpc.Code(err)
+		switch {
+		case gErr == codes.PermissionDenied:
+			http.Error(w, "", http.StatusForbidden)
+			return
+		default:
+			http.Error(w, "", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+func (s *server) move(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+
+	logger := MustFromLogContext(ctx)
+
+	src := getPathFromReq(r)
+	dst := path.Clean(r.Header.Get("Destination"))
+	if dst == "" {
+		http.Error(w, "", http.StatusBadRequest)
+		return
+	}
+
+	logger.Infof("src is %s", src)
+	logger.Infof("dst is %s", dst)
+
+	con, err := getConnection(s.p.metaServer)
+	if err != nil {
+		logger.Error(err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	defer con.Close()
+
+	client := metapb.NewMetaClient(con)
+
+	in := &metapb.MvReq{}
+	in.Src = src
+	in.Dst = dst
+	in.AccessToken = authlib.MustFromTokenContext(ctx)
+
+	_, err = client.Mv(ctx, in)
+	if err != nil {
+		logger.Error(err)
+
+		gErr := grpc.Code(err)
+		switch {
+		case gErr == codes.PermissionDenied:
+			http.Error(w, "", http.StatusForbidden)
+			return
+		default:
+			http.Error(w, "", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *server) copy(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+
+	logger := MustFromLogContext(ctx)
+
+	src := getPathFromReq(r)
+	dst := path.Clean(r.Header.Get("Destination"))
+	if dst == "" {
+		http.Error(w, "", http.StatusBadRequest)
+		return
+	}
+
+	logger.Infof("src is %s", src)
+	logger.Infof("dst is %s", dst)
+
+	con, err := getConnection(s.p.metaServer)
+	if err != nil {
+		logger.Error(err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	defer con.Close()
+
+	client := metapb.NewMetaClient(con)
+
+	in := &metapb.CpReq{}
+	in.Src = src
+	in.Dst = dst
+	in.AccessToken = authlib.MustFromTokenContext(ctx)
+
+	_, err = client.Cp(ctx, in)
+	if err != nil {
+		logger.Error(err)
+
+		gErr := grpc.Code(err)
+		switch {
+		case gErr == codes.PermissionDenied:
+			http.Error(w, "", http.StatusForbidden)
+			return
+		default:
+			http.Error(w, "", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *server) proppatch(ctx context.Context, w http.ResponseWriter, r *http.Request) {
