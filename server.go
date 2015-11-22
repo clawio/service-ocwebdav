@@ -83,12 +83,18 @@ func (s *server) ServeHTTPC(ctx context.Context, w http.ResponseWriter, r *http.
 	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "MKCOL" {
 		reqLogger.WithField("op", "mkcol").Info()
 		s.authHandler(ctx, w, r, s.mkcol)
+	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "MKCOL" {
+		reqLogger.WithField("op", "proppatch").Info()
+		s.authHandler(ctx, w, r, s.proppatch)
 	} else {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 }
 
+func (s *server) proppatch(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	return
+}
 func (s *server) mkcol(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 
 	logger := MustFromLogContext(ctx)
