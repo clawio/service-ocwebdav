@@ -2,6 +2,7 @@ package main
 
 import (
 	"code.google.com/p/go-uuid/uuid"
+	"fmt"
 	authlib "github.com/clawio/service.auth/lib"
 	metapb "github.com/clawio/service.ocwebdav/proto/metadata"
 	log "github.com/sirupsen/logrus"
@@ -10,6 +11,8 @@ import (
 	metadata "google.golang.org/grpc/metadata"
 	"net/http"
 	"path"
+	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -139,4 +142,62 @@ func getGRPCTraceID(ctx context.Context) string {
 	}
 
 	return uuid.New()
+}
+
+type chunkPathInfo struct {
+	ResourcePath string
+	TransferID   string
+	TotalChunks  uint64
+	CurrentChunk uint64
+}
+
+func (c *chunkPathInfo) UploadID() string {
+	return "chunking-" + c.TransferID + "-" + strconv.FormatUint(c.TotalChunks, 10)
+}
+
+type chunkHeaderInfo struct {
+	// OC-Chunked = 1
+	OCChunked bool
+
+	// OC-Chunk-Size
+	OCChunkSize uint64
+
+	// OC-Total-Length
+	OCTotalLength uint64
+}
+
+func (c *chunkPathInfo) String() string {
+	return fmt.Sprintf("chunkPathInfo: (%+v)", *c)
+}
+
+// IsChunked determines if an upload is chunked or not.
+func isChunked(p string) (bool, error) {
+	return regexp.MatchString(`-chunking-\w+-[0-9]+-[0-9]+$`, p)
+}
+
+// GetChunkPathInfo obtains the different parts of a chunk from the path.
+func getChunkPathInfo(p string) (*chunkPathInfo, error) {
+	parts := strings.Split(p, "-chunking-")
+	tail := strings.Split(parts[1], "-")
+
+	totalChunks, err := strconv.ParseUint(tail[1], 10, 64)
+	if err != nil {
+		return nil, err
+	}
+	currentChunk, err := strconv.ParseUint(tail[2], 10, 64)
+	if err != nil {
+		return nil, err
+	}
+
+	if currentChunk >= totalChunks {
+		return nil, fmt.Errorf("current chunk:%d exceeds total chunks:%d.", currentChunk, totalChunks)
+	}
+
+	info := &chunkPathInfo{}
+	info.ResourcePath = parts[0]
+	info.TransferID = tail[0]
+	info.TotalChunks = totalChunks
+	info.CurrentChunk = currentChunk
+
+	return info, nil
 }

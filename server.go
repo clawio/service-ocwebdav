@@ -584,6 +584,17 @@ func (s *server) put(ctx context.Context, w http.ResponseWriter, r *http.Request
 
 	logger.Infof("path is %s", p)
 
+	chunked, err := isChunked(p)
+	if err != nil {
+		log.Error(err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	if chunked {
+		log.Info("upload is chunked!!!")
+	}
+
 	c := &http.Client{}
 	req, err := http.NewRequest("PUT", s.p.dataServer+path.Join("/", p), r.Body)
 	if err != nil {
