@@ -65,6 +65,7 @@ func main() {
 	p.dataServer = env.dataServer
 	p.metaServer = env.metaServer
 	p.sharedSecret = env.sharedSecret
+	p.tmpDir = env.tmpDir
 
 	srv, err := newServer(p)
 	if err != nil {

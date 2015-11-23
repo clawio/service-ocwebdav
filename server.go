@@ -11,9 +11,12 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -34,6 +37,7 @@ type newServerParams struct {
 	metaServer   string
 	prop         string
 	sharedSecret string
+	tmpDir       string
 }
 
 func newServer(p *newServerParams) (*server, error) {
@@ -660,7 +664,185 @@ func (s *server) putChunked(ctx context.Context, w http.ResponseWriter, r *http.
 
 	logger.Infof("path is %s", p)
 
-	http.Error(w, "", http.StatusNotImplemented)
+	chunkInfo, err := getChunkPathInfo(p)
+	if err != nil {
+		log.Error(err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	logger.Infof("%s", chunkInfo.String())
+
+	tmpFn, tmpFile, err := s.tmpFile()
+	if err != nil {
+		log.Error(err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	logger.Infof("created tmp file %s", tmpFn)
+
+	_, err = io.Copy(tmpFile, r.Body)
+	if err != nil {
+		log.Error(err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	logger.Infof("copied r.Body to %s", tmpFile)
+
+	err = tmpFile.Close()
+	if err != nil {
+		logger.Error(err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	logger.Infof("closed %s", tmpFn)
+
+	chunkFolder, err := s.getChunkFolder(chunkInfo)
+	if err != nil {
+		log.Error(err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	logger.Infof("chunk folder is %s", chunkFolder)
+
+	chunkDst := path.Join(chunkFolder, path.Clean(strconv.FormatUint(chunkInfo.CurrentChunk, 10)))
+
+	logger.Infof("chunk path is %s", chunkDst)
+
+	err = os.Rename(tmpFn, chunkDst)
+	if err != nil {
+		logger.Error(err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	logger.Infof("moved chunk from %s to %s", tmpFn, chunkDst)
+
+	// Check that all chunks are uploaded.
+	// This is very inefficient, the server has to check that it has all the
+	// chunks after each uploaded chunk.
+	// A two-phase upload like DropBox is better, because the server will
+	// assembly the chunks when the client asks for it.
+
+	fdChunkFolder, err := os.Open(chunkFolder)
+	if err != nil {
+		logger.Error(err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	logger.Infof("opened chunk foler %s", chunkFolder)
+
+	defer fdChunkFolder.Close()
+
+	fns, err := fdChunkFolder.Readdirnames(-1)
+	if err != nil {
+		logger.Error(err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	logger.Infof("there are %d out of %d chunks", len(fns), chunkInfo.TotalChunks)
+
+	if len(fns) < int(chunkInfo.TotalChunks) {
+		logger.Infof("chunk upload is not complete")
+		w.WriteHeader(http.StatusCreated)
+		return
+	}
+
+	assemblyFn, assemblyFile, err := s.tmpFile()
+	if err != nil {
+		logger.Error(err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	logger.Infof("created assemby file at %s", assemblyFn)
+
+	for chunk := 0; chunk < int(chunkInfo.TotalChunks); chunk++ {
+
+		cp := path.Join(chunkFolder,
+			strconv.FormatInt(int64(chunk), 10))
+
+		logger.Infof("going to process chunk %d with path %s", chunk, cp)
+
+		fdChunk, err := os.Open(cp)
+		if err != nil {
+			logger.Error(err)
+			http.Error(w, "", http.StatusInternalServerError)
+			return
+		}
+
+		defer fdChunk.Close()
+
+		logger.Infof("opened chunk at %s", cp)
+
+		_, err = io.Copy(assemblyFile, fdChunk)
+		if err != nil {
+			logger.Error(err)
+			http.Error(w, "", http.StatusInternalServerError)
+			return
+		}
+
+		logger.Infof("copied chunk %s into assembly file %s", cp, assemblyFn)
+	}
+
+	c := &http.Client{}
+	req, err := http.NewRequest("PUT", s.p.dataServer+path.Join("/", chunkInfo.ResourcePath), assemblyFile)
+	if err != nil {
+		logger.Error(err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	req.Header.Add("Authorization", "Bearer "+authlib.MustFromTokenContext(ctx))
+	req.Header.Add("CIO-Checksum", r.Header.Get("CIO-Checksum"))
+	req.Header.Add("CIO-TraceID", logger.Data["trace"].(string))
+
+	res, err := c.Do(req)
+	if err != nil {
+		log.Error(err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	defer res.Body.Close()
+
+	if res.StatusCode != 201 {
+		w.WriteHeader(res.StatusCode)
+		return
+	}
+
+	meta, err := getMeta(ctx, s.p.metaServer, p, false)
+	if err != nil {
+		logger.Error(err)
+
+		gErr := grpc.Code(err)
+		switch {
+		case gErr == codes.NotFound:
+			http.Error(w, "", http.StatusNotFound)
+			return
+		case gErr == codes.PermissionDenied:
+			http.Error(w, "", http.StatusForbidden)
+			return
+		default:
+			http.Error(w, "", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	w.Header().Set("ETag", meta.Etag)
+	w.Header().Set("OC-FileId", meta.Id)
+	w.Header().Set("OC-ETag", meta.Etag)
+	t := time.Unix(int64(meta.Modified), 0)
+	lastModifiedString := t.Format(time.RFC1123)
+	w.Header().Set("Last-Modified", lastModifiedString)
+
+	w.WriteHeader(http.StatusCreated)
 }
 
 func (s *server) options(ctx context.Context, w http.ResponseWriter, r *http.Request) {
@@ -784,4 +966,28 @@ func (s *server) authHandler(ctx context.Context, w http.ResponseWriter, r *http
 		ctx = authlib.NewTokenContext(ctx, res.Token)
 		next(ctx, w, r)
 	}
+}
+
+func (s *server) tmpFile() (string, *os.File, error) {
+
+	file, err := ioutil.TempFile(s.p.tmpDir, serviceID)
+	if err != nil {
+		return "", nil, err
+	}
+
+	fn := path.Join(path.Clean(file.Name()))
+
+	return fn, file, nil
+}
+
+func (s *server) getChunkFolder(i *chunkPathInfo) (string, error) {
+	// not using the resource path in the chunk folder name allows uploading
+	// to the same folder after a move without having to restart the chunk
+	// upload
+	p := path.Join(s.p.tmpDir, path.Clean(i.UploadID()))
+
+	if err := os.MkdirAll(p, dirPerm); err != nil {
+		return "", err
+	}
+	return p, nil
 }
