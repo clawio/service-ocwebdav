@@ -689,7 +689,7 @@ func (s *server) putChunked(ctx context.Context, w http.ResponseWriter, r *http.
 		return
 	}
 
-	logger.Infof("copied r.Body to %s", tmpFile)
+	logger.Infof("copied r.Body to %s", tmpFn)
 
 	err = tmpFile.Close()
 	if err != nil {
@@ -735,7 +735,7 @@ func (s *server) putChunked(ctx context.Context, w http.ResponseWriter, r *http.
 		return
 	}
 
-	logger.Infof("opened chunk foler %s", chunkFolder)
+	logger.Infof("opened chunk folder %s", chunkFolder)
 
 	defer fdChunkFolder.Close()
 
@@ -761,7 +761,7 @@ func (s *server) putChunked(ctx context.Context, w http.ResponseWriter, r *http.
 		return
 	}
 
-	logger.Infof("created assemby file at %s", assemblyFn)
+	logger.Infof("created assembly file at %s", assemblyFn)
 
 	for chunk := 0; chunk < int(chunkInfo.TotalChunks); chunk++ {
 
@@ -777,8 +777,6 @@ func (s *server) putChunked(ctx context.Context, w http.ResponseWriter, r *http.
 			return
 		}
 
-		defer fdChunk.Close()
-
 		logger.Infof("opened chunk at %s", cp)
 
 		_, err = io.Copy(assemblyFile, fdChunk)
@@ -788,8 +786,27 @@ func (s *server) putChunked(ctx context.Context, w http.ResponseWriter, r *http.
 			return
 		}
 
+		// close fd now. If we defer it we will have thousands of open fd
+		// until assembly process
+		err = fdChunk.Close()
+		if err != nil {
+			logger.Error(err)
+			http.Error(w, "", http.StatusInternalServerError)
+			return
+		}
+
 		logger.Infof("copied chunk %s into assembly file %s", cp, assemblyFn)
 	}
+
+	// Point fd to beginning of file to start copying
+	_, err = assemblyFile.Seek(0, 0)
+	if err != nil {
+		logger.Error(err)
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
+
+	logger.Infof("assembly file sought to first offset for copy")
 
 	c := &http.Client{}
 	req, err := http.NewRequest("PUT", s.p.dataServer+path.Join("/", chunkInfo.ResourcePath), assemblyFile)
@@ -809,6 +826,8 @@ func (s *server) putChunked(ctx context.Context, w http.ResponseWriter, r *http.
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
+
+	logger.Infof("assembly file %s uploaded to %s", assemblyFn, s.p.dataServer)
 
 	defer res.Body.Close()
 

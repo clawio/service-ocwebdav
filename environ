@@ -2,5 +2,5 @@ export CLAWIO_OCWEBDAV_TMPDIR=/tmp/chunks
 export CLAWIO_OCWEBDAV_PORT=57004
 export CLAWIO_OCWEBDAV_AUTH="service-auth:57000"
 export CLAWIO_OCWEBDAV_META="service-localstore-meta:57001"
-export CLAWIO_OCWEBDAV_DATA="service-localstore-data:57002"
+export CLAWIO_OCWEBDAV_DATA="http://service-localstore-data:57002"
 export CLAWIO_SHAREDSECRET=secret
