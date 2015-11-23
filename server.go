@@ -817,7 +817,7 @@ func (s *server) putChunked(ctx context.Context, w http.ResponseWriter, r *http.
 		return
 	}
 
-	meta, err := getMeta(ctx, s.p.metaServer, p, false)
+	meta, err := getMeta(ctx, s.p.metaServer, chunkInfo.ResourcePath, false)
 	if err != nil {
 		logger.Error(err)
 

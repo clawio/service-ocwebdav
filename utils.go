@@ -167,7 +167,7 @@ type chunkHeaderInfo struct {
 }
 
 func (c *chunkPathInfo) String() string {
-	return fmt.Sprintf("chunkPathInfo: (%+v)", *c)
+	return fmt.Sprintf("< path:%s total_chunks:%d current_chunk:%d id:%s >", c.ResourcePath, c.TotalChunks, c.CurrentChunk, c.TransferID)
 }
 
 // IsChunked determines if an upload is chunked or not.
