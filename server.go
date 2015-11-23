@@ -74,6 +74,19 @@ func (s *server) ServeHTTPC(ctx context.Context, w http.ResponseWriter, r *http.
 		s.authHandler(ctx, w, r, s.get)
 	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "PUT" {
 		reqLogger.WithField("op", "put").Info()
+		p := getPathFromReq(r)
+		chunked, err := isChunked(p)
+		if err != nil {
+			reqLogger.Error(err)
+			http.Error(w, "", http.StatusInternalServerError)
+			return
+		}
+
+		if chunked {
+			s.authHandler(ctx, w, r, s.putChunked)
+			return
+		}
+
 		s.authHandler(ctx, w, r, s.put)
 	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "LOCK" {
 		reqLogger.WithField("op", "lock").Info()
@@ -584,17 +597,6 @@ func (s *server) put(ctx context.Context, w http.ResponseWriter, r *http.Request
 
 	logger.Infof("path is %s", p)
 
-	chunked, err := isChunked(p)
-	if err != nil {
-		log.Error(err)
-		http.Error(w, "", http.StatusInternalServerError)
-		return
-	}
-
-	if chunked {
-		log.Info("upload is chunked!!!")
-	}
-
 	c := &http.Client{}
 	req, err := http.NewRequest("PUT", s.p.dataServer+path.Join("/", p), r.Body)
 	if err != nil {
@@ -616,7 +618,49 @@ func (s *server) put(ctx context.Context, w http.ResponseWriter, r *http.Request
 
 	defer res.Body.Close()
 
-	w.WriteHeader(res.StatusCode)
+	if res.StatusCode != 201 {
+		w.WriteHeader(res.StatusCode)
+		return
+	}
+
+	meta, err := getMeta(ctx, s.p.metaServer, p, false)
+	if err != nil {
+		logger.Error(err)
+
+		gErr := grpc.Code(err)
+		switch {
+		case gErr == codes.NotFound:
+			http.Error(w, "", http.StatusNotFound)
+			return
+		case gErr == codes.PermissionDenied:
+			http.Error(w, "", http.StatusForbidden)
+			return
+		default:
+			http.Error(w, "", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	w.Header().Set("ETag", meta.Etag)
+	w.Header().Set("OC-FileId", meta.Id)
+	w.Header().Set("OC-ETag", meta.Etag)
+	t := time.Unix(int64(meta.Modified), 0)
+	lastModifiedString := t.Format(time.RFC1123)
+	w.Header().Set("Last-Modified", lastModifiedString)
+
+	w.WriteHeader(http.StatusCreated)
+
+}
+
+func (s *server) putChunked(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+
+	logger := MustFromLogContext(ctx)
+
+	p := getPathFromReq(r)
+
+	logger.Infof("path is %s", p)
+
+	http.Error(w, "", http.StatusNotImplemented)
 }
 
 func (s *server) options(ctx context.Context, w http.ResponseWriter, r *http.Request) {
