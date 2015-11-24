@@ -808,6 +808,8 @@ func (s *server) putChunked(ctx context.Context, w http.ResponseWriter, r *http.
 
 	logger.Infof("assembly file sought to first offset for copy")
 
+	// TODO(labkode) instead uploading the file when it is assembled the best is to provide
+	// a core API like DropBox chunk sessions that is compatible with everyone
 	c := &http.Client{}
 	req, err := http.NewRequest("PUT", s.p.dataServer+path.Join("/", chunkInfo.ResourcePath), assemblyFile)
 	if err != nil {
