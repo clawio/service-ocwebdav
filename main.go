@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/rs/xaccess"
 	"github.com/rs/xhandler"
 	log "github.com/sirupsen/logrus"
 	"net/http"
@@ -75,6 +76,7 @@ func main() {
 
 	c := xhandler.Chain{}
 	c.UseC(xhandler.CloseHandler)
+	c.UseC(xaccess.NewHandler())
 
 	http.Handle(endPoint, c.Handler(srv))
 	log.Error(http.ListenAndServe(fmt.Sprintf(":%d", env.port), nil))

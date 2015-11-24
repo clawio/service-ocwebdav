@@ -601,6 +601,26 @@ func (s *server) put(ctx context.Context, w http.ResponseWriter, r *http.Request
 
 	logger.Infof("path is %s", p)
 
+	// if client sends etag check against the current value
+	// if file is not found or etags do not match return 412
+	ifMatchHeader := r.Header.Get("If-Match")
+	if ifMatchHeader != "" {
+
+		meta, err := getMeta(ctx, s.p.metaServer, p, false)
+		if err != nil {
+			logger.Error(err)
+			http.Error(w, "", http.StatusPreconditionFailed)
+			return
+		}
+
+		if meta.Etag != ifMatchHeader {
+			logger.Warnf("etags do not match. client send %s and server has %s", ifMatchHeader, meta.Etag)
+			http.Error(w, "", http.StatusPreconditionFailed)
+			return
+		}
+
+	}
+
 	c := &http.Client{}
 	req, err := http.NewRequest("PUT", s.p.dataServer+path.Join("/", p), r.Body)
 	if err != nil {
@@ -651,6 +671,7 @@ func (s *server) put(ctx context.Context, w http.ResponseWriter, r *http.Request
 	t := time.Unix(int64(meta.Modified), 0)
 	lastModifiedString := t.Format(time.RFC1123)
 	w.Header().Set("Last-Modified", lastModifiedString)
+	w.Header().Set("X-OC-MTime", "accepted")
 
 	w.WriteHeader(http.StatusCreated)
 
@@ -669,6 +690,26 @@ func (s *server) putChunked(ctx context.Context, w http.ResponseWriter, r *http.
 		log.Error(err)
 		http.Error(w, "", http.StatusInternalServerError)
 		return
+	}
+
+	// if client sends etag check against the current value
+	// if file is not found or etags do not match return 412
+	ifMatchHeader := r.Header.Get("If-Match")
+	if ifMatchHeader != "" {
+
+		meta, err := getMeta(ctx, s.p.metaServer, chunkInfo.ResourcePath, false)
+		if err != nil {
+			logger.Error(err)
+			http.Error(w, "", http.StatusPreconditionFailed)
+			return
+		}
+
+		if meta.Etag != ifMatchHeader {
+			logger.Warnf("etags do not match. client send %s and server has %s", ifMatchHeader, meta.Etag)
+			http.Error(w, "", http.StatusPreconditionFailed)
+			return
+		}
+
 	}
 
 	logger.Infof("%s", chunkInfo.String())
@@ -856,12 +897,14 @@ func (s *server) putChunked(ctx context.Context, w http.ResponseWriter, r *http.
 		}
 	}
 
+	// TODO(labkode) Analyze side effects on not respecting OC-Mtime
 	w.Header().Set("ETag", meta.Etag)
 	w.Header().Set("OC-FileId", meta.Id)
 	w.Header().Set("OC-ETag", meta.Etag)
 	t := time.Unix(int64(meta.Modified), 0)
 	lastModifiedString := t.Format(time.RFC1123)
 	w.Header().Set("Last-Modified", lastModifiedString)
+	w.Header().Set("X-OC-MTime", "accepted")
 
 	w.WriteHeader(http.StatusCreated)
 }
