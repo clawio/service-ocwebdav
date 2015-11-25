@@ -76,9 +76,13 @@ func metaToPropResponse(meta *metapb.Metadata) (*responseXML, error) {
 		xml.Name{Space: "", Local: "d:resourcetype"},
 		"", []byte("")}
 
+	ocPermissions := propertyXML{xml.Name{Space: "", Local: "oc:permissions"},
+		"", []byte("RDNVW")}
+
 	if meta.IsContainer {
 		getResourceType.InnerXML = []byte("<d:collection/>")
 		getContentType.InnerXML = []byte("inode/container")
+		ocPermissions.InnerXML = []byte("RDNVCK")
 	}
 	propList = append(propList, getResourceType)
 
@@ -90,9 +94,6 @@ func metaToPropResponse(meta *metapb.Metadata) (*responseXML, error) {
 
 	ocDC := propertyXML{xml.Name{Space: "", Local: "oc:dDC"},
 		"", []byte("")}
-
-	ocPermissions := propertyXML{xml.Name{Space: "", Local: "oc:permissions"},
-		"", []byte("RDNVCK")}
 
 	propList = append(propList, getContentLegnth,
 		getLastModified, getETag, getContentType, quotaUsedBytes,

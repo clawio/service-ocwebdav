@@ -7,6 +7,7 @@ import (
 	authpb "github.com/clawio/service.ocwebdav/proto/auth"
 	metapb "github.com/clawio/service.ocwebdav/proto/metadata"
 	log "github.com/sirupsen/logrus"
+	"github.com/zenazn/goji/web/mutil"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -55,27 +56,50 @@ type server struct {
 func (s *server) ServeHTTPC(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 
 	traceID := getTraceID(r)
-	reqLogger := log.WithField("trace", traceID)
+	reqLogger := log.WithField("trace", traceID).WithField("svc", serviceID)
 	ctx = NewLogContext(ctx, reqLogger)
 	ctx = newGRPCTraceContext(ctx, traceID)
 
-	reqLogger.WithField("url", r.URL.String()).Info()
+	reqLogger.Info("request started")
+
+	// Time request
+	reqStart := time.Now()
+
+	// Sniff the status and content size for logging
+	lw := mutil.WrapWriter(w)
+
+	defer func() {
+		// Compute request duration
+		reqDur := time.Since(reqStart)
+
+		// Log access info
+		reqLogger.WithFields(log.Fields{
+			"method":      r.Method,
+			"type":        "access",
+			"status_code": lw.Status(),
+			"duration":    reqDur.Seconds(),
+			"size":        lw.BytesWritten(),
+		}).Infof("%s %s %03d", r.Method, r.URL.String(), lw.Status())
+
+		reqLogger.Info("request finished")
+
+	}()
 
 	if strings.HasPrefix(r.URL.Path, statusURL) && strings.ToUpper(r.Method) == "GET" {
 		reqLogger.WithField("op", "status").Info()
-		s.status(ctx, w, r)
+		s.status(ctx, lw, r)
 	} else if strings.HasPrefix(r.URL.Path, capabilitiesURL) && strings.ToUpper(r.Method) == "GET" {
 		reqLogger.WithField("op", "capabilities").Info()
-		s.capabilities(ctx, w, r)
+		s.capabilities(ctx, lw, r)
 	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "HEAD" {
 		reqLogger.WithField("op", "head").Info()
-		s.authHandler(ctx, w, r, s.head)
+		s.authHandler(ctx, lw, r, s.head)
 	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "PROPFIND" {
 		reqLogger.WithField("op", "propfind").Info()
-		s.authHandler(ctx, w, r, s.propfind)
+		s.authHandler(ctx, lw, r, s.propfind)
 	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "GET" {
 		reqLogger.WithField("op", "get").Info()
-		s.authHandler(ctx, w, r, s.get)
+		s.authHandler(ctx, lw, r, s.get)
 	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "PUT" {
 		reqLogger.WithField("op", "put").Info()
 		p := getPathFromReq(r)
@@ -87,32 +111,32 @@ func (s *server) ServeHTTPC(ctx context.Context, w http.ResponseWriter, r *http.
 		}
 
 		if chunked {
-			s.authHandler(ctx, w, r, s.putChunked)
+			s.authHandler(ctx, lw, r, s.putChunked)
 			return
 		}
 
-		s.authHandler(ctx, w, r, s.put)
+		s.authHandler(ctx, lw, r, s.put)
 	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "LOCK" {
 		reqLogger.WithField("op", "lock").Info()
-		s.authHandler(ctx, w, r, s.lock)
+		s.authHandler(ctx, lw, r, s.lock)
 	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "OPTIONS" {
 		reqLogger.WithField("op", "options").Info()
-		s.authHandler(ctx, w, r, s.options)
+		s.authHandler(ctx, lw, r, s.options)
 	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "MKCOL" {
 		reqLogger.WithField("op", "mkcol").Info()
-		s.authHandler(ctx, w, r, s.mkcol)
+		s.authHandler(ctx, lw, r, s.mkcol)
 	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "MKCOL" {
 		reqLogger.WithField("op", "proppatch").Info()
-		s.authHandler(ctx, w, r, s.proppatch)
+		s.authHandler(ctx, lw, r, s.proppatch)
 	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "COPY" {
 		reqLogger.WithField("op", "copy").Info()
-		s.authHandler(ctx, w, r, s.copy)
+		s.authHandler(ctx, lw, r, s.copy)
 	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "MOVE" {
 		reqLogger.WithField("op", "move").Info()
-		s.authHandler(ctx, w, r, s.move)
+		s.authHandler(ctx, lw, r, s.move)
 	} else if strings.HasPrefix(r.URL.Path, remoteURL) && strings.ToUpper(r.Method) == "DELETE" {
 		reqLogger.WithField("op", "delete").Info()
-		s.authHandler(ctx, w, r, s.delete)
+		s.authHandler(ctx, lw, r, s.delete)
 	} else {
 		w.WriteHeader(http.StatusNotFound)
 		return
@@ -521,9 +545,7 @@ func (s *server) propfind(ctx context.Context, w http.ResponseWriter, r *http.Re
 	}
 
 	w.Header().Set("DAV", "1, 3, extended-mkcol")
-	w.Header().Set("ETag", meta.Etag)
 	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
-	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(xml)))
 	w.WriteHeader(207)
 
 	w.Write(xml)
@@ -613,7 +635,8 @@ func (s *server) put(ctx context.Context, w http.ResponseWriter, r *http.Request
 			return
 		}
 
-		if meta.Etag != ifMatchHeader {
+		// TODO(labkode) refactor this
+		if ifMatchHeader != `"`+meta.Etag+`"` {
 			logger.Warnf("etags do not match. client send %s and server has %s", ifMatchHeader, meta.Etag)
 			http.Error(w, "", http.StatusPreconditionFailed)
 			return
@@ -704,7 +727,8 @@ func (s *server) putChunked(ctx context.Context, w http.ResponseWriter, r *http.
 			return
 		}
 
-		if meta.Etag != ifMatchHeader {
+		// TODO(labkode) refactor this
+		if ifMatchHeader != `"`+meta.Etag+`"` {
 			logger.Warnf("etags do not match. client send %s and server has %s", ifMatchHeader, meta.Etag)
 			http.Error(w, "", http.StatusPreconditionFailed)
 			return
