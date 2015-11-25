@@ -374,16 +374,16 @@ func (s *server) capabilities(ctx context.Context, w http.ResponseWriter, r *htt
 	        },
 	        "files": {
 	          "bigfilechunking": true,
-	          "undelete": false,
-	          "versioning": false
+	          "undelete": true,
+	          "versioning": true
 	        }
 	      },
 	      "version": {
 	        "edition": "",
 	        "major": 8,
-	        "micro": 7,
-	        "minor": 0,
-	        "string": "8.0.7"
+	        "micro": 1,
+	        "minor": 2,
+	        "string": "8.2.1"
 	      }
 	    },
 	    "meta": {
@@ -404,11 +404,11 @@ func (s *server) status(ctx context.Context, w http.ResponseWriter, r *http.Requ
 	logger := MustFromLogContext(ctx)
 
 	major := "8"
-	minor := "1"
-	micro := "2"
+	minor := "2"
+	micro := "1"
 	edition := ""
 
-	version := fmt.Sprintf("%s.%s.%s.3", major, minor, micro)
+	version := fmt.Sprintf("%s.%s.%s.4", major, minor, micro)
 	versionString := fmt.Sprintf("%s.%s.%s", major, minor, micro)
 
 	status := &struct {
@@ -612,6 +612,11 @@ func (s *server) get(ctx context.Context, w http.ResponseWriter, r *http.Request
 	lastModifiedString := t.Format(time.RFC1123)
 	w.Header().Set("Last-Modified", lastModifiedString)
 
+	logger.Infof("file checksum is %s", meta.Checksum)
+	if meta.Checksum != "" {
+		w.Header().Set("OC-Checksum", meta.Checksum)
+	}
+
 	io.Copy(w, res.Body)
 }
 
@@ -653,7 +658,7 @@ func (s *server) put(ctx context.Context, w http.ResponseWriter, r *http.Request
 	}
 
 	req.Header.Add("Authorization", "Bearer "+authlib.MustFromTokenContext(ctx))
-	req.Header.Add("CIO-Checksum", r.Header.Get("CIO-Checksum"))
+	req.Header.Add("CIO-Checksum", r.Header.Get("OC-Checksum"))
 	req.Header.Add("CIO-TraceID", logger.Data["trace"].(string))
 
 	res, err := c.Do(req)
@@ -884,7 +889,7 @@ func (s *server) putChunked(ctx context.Context, w http.ResponseWriter, r *http.
 	}
 
 	req.Header.Add("Authorization", "Bearer "+authlib.MustFromTokenContext(ctx))
-	req.Header.Add("CIO-Checksum", r.Header.Get("CIO-Checksum"))
+	req.Header.Add("CIO-Checksum", r.Header.Get("OC-Checksum"))
 	req.Header.Add("CIO-TraceID", logger.Data["trace"].(string))
 
 	res, err := c.Do(req)
