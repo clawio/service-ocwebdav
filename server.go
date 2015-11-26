@@ -260,7 +260,8 @@ func (s *server) move(ctx context.Context, w http.ResponseWriter, r *http.Reques
 	lastModifiedString := t.Format(time.RFC1123)
 	w.Header().Set("Last-Modified", lastModifiedString)
 
-	w.WriteHeader(http.StatusNoContent)
+	// TODO(labkode) is resource existed (overwrite the code should be 204)
+	w.WriteHeader(http.StatusCreated)
 }
 
 func (s *server) copy(ctx context.Context, w http.ResponseWriter, r *http.Request) {
