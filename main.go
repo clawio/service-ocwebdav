@@ -6,6 +6,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"net/http"
 	"os"
+	"runtime"
 	"strconv"
 )
 
@@ -46,7 +47,7 @@ func getEnviron() (*environ, error) {
 }
 
 func main() {
-
+	runtime.GOMAXPROCS(runtime.NumCPU())
 	env, err := getEnviron()
 	if err != nil {
 		log.Error(err)
