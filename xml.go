@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/xml"
 	"fmt"
-	metapb "github.com/clawio/service.ocwebdav/proto/metadata"
+	metapb "github.com/clawio/service-ocwebdav/proto/metadata"
 	"path"
 	"time"
 )

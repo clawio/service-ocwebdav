@@ -3,9 +3,9 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	authlib "github.com/clawio/service.auth/lib"
-	authpb "github.com/clawio/service.ocwebdav/proto/auth"
-	metapb "github.com/clawio/service.ocwebdav/proto/metadata"
+	authlib "github.com/clawio/service-auth/lib"
+	authpb "github.com/clawio/service-ocwebdav/proto/auth"
+	metapb "github.com/clawio/service-ocwebdav/proto/metadata"
 	log "github.com/sirupsen/logrus"
 	"github.com/zenazn/goji/web/mutil"
 	"golang.org/x/net/context"

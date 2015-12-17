@@ -3,8 +3,8 @@ package main
 import (
 	"code.google.com/p/go-uuid/uuid"
 	"fmt"
-	authlib "github.com/clawio/service.auth/lib"
-	metapb "github.com/clawio/service.ocwebdav/proto/metadata"
+	authlib "github.com/clawio/service-auth/lib"
+	metapb "github.com/clawio/service-ocwebdav/proto/metadata"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
