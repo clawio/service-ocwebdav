@@ -593,7 +593,7 @@ func (s *server) get(ctx context.Context, w http.ResponseWriter, r *http.Request
 
 	res, err := c.Do(req)
 	if err != nil {
-		log.Error(err)
+		logger.Error(err)
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
@@ -658,13 +658,14 @@ func (s *server) put(ctx context.Context, w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	req.Close = true
 	req.Header.Add("Authorization", "Bearer "+authlib.MustFromTokenContext(ctx))
 	req.Header.Add("CIO-Checksum", r.Header.Get("OC-Checksum"))
 	req.Header.Add("CIO-TraceID", logger.Data["trace"].(string))
 
 	res, err := c.Do(req)
 	if err != nil {
-		log.Error(err)
+		logger.Error(err)
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
@@ -716,7 +717,7 @@ func (s *server) putChunked(ctx context.Context, w http.ResponseWriter, r *http.
 
 	chunkInfo, err := getChunkPathInfo(p)
 	if err != nil {
-		log.Error(err)
+		logger.Error(err)
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
@@ -746,7 +747,7 @@ func (s *server) putChunked(ctx context.Context, w http.ResponseWriter, r *http.
 
 	tmpFn, tmpFile, err := s.tmpFile()
 	if err != nil {
-		log.Error(err)
+		logger.Error(err)
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
@@ -755,7 +756,7 @@ func (s *server) putChunked(ctx context.Context, w http.ResponseWriter, r *http.
 
 	_, err = io.Copy(tmpFile, r.Body)
 	if err != nil {
-		log.Error(err)
+		logger.Error(err)
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
@@ -773,7 +774,7 @@ func (s *server) putChunked(ctx context.Context, w http.ResponseWriter, r *http.
 
 	chunkFolder, err := s.getChunkFolder(chunkInfo)
 	if err != nil {
-		log.Error(err)
+		logger.Error(err)
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
@@ -889,13 +890,14 @@ func (s *server) putChunked(ctx context.Context, w http.ResponseWriter, r *http.
 		return
 	}
 
+	req.Close = true
 	req.Header.Add("Authorization", "Bearer "+authlib.MustFromTokenContext(ctx))
 	req.Header.Add("CIO-Checksum", r.Header.Get("OC-Checksum"))
 	req.Header.Add("CIO-TraceID", logger.Data["trace"].(string))
 
 	res, err := c.Do(req)
 	if err != nil {
-		log.Error(err)
+		logger.Error(err)
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
