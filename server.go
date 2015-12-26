@@ -54,6 +54,8 @@ type server struct {
 }
 
 func (s *server) ServeHTTPC(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	// Force server to close connection
+	r.Close = true
 
 	traceID := getTraceID(r)
 	reqLogger := log.WithField("trace", traceID).WithField("svc", serviceID)
@@ -111,6 +113,7 @@ func (s *server) ServeHTTPC(ctx context.Context, w http.ResponseWriter, r *http.
 		}
 
 		if chunked {
+			reqLogger.Info("upload is chunked")
 			s.authHandler(ctx, lw, r, s.putChunked)
 			return
 		}
