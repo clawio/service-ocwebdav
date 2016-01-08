@@ -873,6 +873,15 @@ func (s *server) putChunked(ctx context.Context, w http.ResponseWriter, r *http.
 		logger.Infof("copied chunk %s into assembly file %s", cp, assemblyFn)
 	}
 
+	// Now that the chunks are assembled into one larger file
+	// we can remove the chunk folder to free space
+	defer func() {
+		err := os.RemoveAll(chunkFolder)
+		if err != nil {
+			log.Error(err)
+		}
+	}()
+
 	// Point fd to beginning of file to start copying
 	_, err = assemblyFile.Seek(0, 0)
 	if err != nil {
@@ -913,6 +922,15 @@ func (s *server) putChunked(ctx context.Context, w http.ResponseWriter, r *http.
 		w.WriteHeader(res.StatusCode)
 		return
 	}
+
+	// The assembled file has been uploaded correctly so
+	// we can free space
+	defer func() {
+		err := os.RemoveAll(assemblyFn)
+		if err != nil {
+			log.Error(err)
+		}
+	}()
 
 	meta, err := getMeta(ctx, s.p.metaServer, chunkInfo.ResourcePath, false)
 	if err != nil {
@@ -1045,7 +1063,6 @@ func (s *server) authHandler(ctx context.Context, w http.ResponseWriter, r *http
 		}
 
 		logger.Infof("basic auth successful for username %s", user)
-		// TODO(labkode) Set cookie
 
 		idt, err := authlib.ParseToken(res.Token, s.p.sharedSecret)
 		if err != nil {
@@ -1055,6 +1072,12 @@ func (s *server) authHandler(ctx context.Context, w http.ResponseWriter, r *http
 		}
 
 		logger.Info(idt)
+
+		cookie := &http.Cookie{}
+		cookie.Name = "OC_SessionPassphrase"
+		cookie.Value = res.Token
+
+		http.SetCookie(w, cookie)
 
 		// token added to the request because when proxied
 		// no all servers will handle basic auth, but all will handle

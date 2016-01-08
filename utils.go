@@ -95,7 +95,7 @@ func getTokenFromReq(r *http.Request) string {
 	var token string
 
 	// Look for cookie - Just for OwnCloud
-	authCookie, err := r.Cookie("SESSID")
+	authCookie, err := r.Cookie("OC_SessionPassphrase")
 	if err == nil && authCookie.Value != "" {
 		return authCookie.Value
 	}
