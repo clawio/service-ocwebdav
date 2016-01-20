@@ -754,6 +754,7 @@ func (s *server) putChunked(ctx context.Context, w http.ResponseWriter, r *http.
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
+	defer tmpFile.Close()
 
 	logger.Infof("created tmp file %s", tmpFn)
 
@@ -810,9 +811,9 @@ func (s *server) putChunked(ctx context.Context, w http.ResponseWriter, r *http.
 		return
 	}
 
-	logger.Infof("opened chunk folder %s", chunkFolder)
-
 	defer fdChunkFolder.Close()
+
+	logger.Infof("opened chunk folder %s", chunkFolder)
 
 	fns, err := fdChunkFolder.Readdirnames(-1)
 	if err != nil {
@@ -836,6 +837,8 @@ func (s *server) putChunked(ctx context.Context, w http.ResponseWriter, r *http.
 		return
 	}
 
+	defer assemblyFile.Close()
+
 	logger.Infof("created assembly file at %s", assemblyFn)
 
 	for chunk := 0; chunk < int(chunkInfo.TotalChunks); chunk++ {
@@ -852,6 +855,7 @@ func (s *server) putChunked(ctx context.Context, w http.ResponseWriter, r *http.
 			return
 		}
 
+		defer fdChunk.Close()
 		logger.Infof("opened chunk at %s", cp)
 
 		_, err = io.Copy(assemblyFile, fdChunk)
