@@ -54,6 +54,8 @@ type server struct {
 }
 
 func (s *server) ServeHTTPC(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	// Force server to close connection
+	r.Close = true
 
 	traceID, err := getTraceID(r)
 	if err != nil {
@@ -116,6 +118,7 @@ func (s *server) ServeHTTPC(ctx context.Context, w http.ResponseWriter, r *http.
 		}
 
 		if chunked {
+			reqLogger.Info("upload is chunked")
 			s.authHandler(ctx, lw, r, s.putChunked)
 			return
 		}
@@ -598,7 +601,7 @@ func (s *server) get(ctx context.Context, w http.ResponseWriter, r *http.Request
 
 	res, err := c.Do(req)
 	if err != nil {
-		log.Error(err)
+		logger.Error(err)
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
@@ -663,13 +666,14 @@ func (s *server) put(ctx context.Context, w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	req.Close = true
 	req.Header.Add("Authorization", "Bearer "+authlib.MustFromTokenContext(ctx))
 	req.Header.Add("CIO-Checksum", r.Header.Get("OC-Checksum"))
 	req.Header.Add("CIO-TraceID", logger.Data["trace"].(string))
 
 	res, err := c.Do(req)
 	if err != nil {
-		log.Error(err)
+		logger.Error(err)
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
@@ -721,7 +725,7 @@ func (s *server) putChunked(ctx context.Context, w http.ResponseWriter, r *http.
 
 	chunkInfo, err := getChunkPathInfo(p)
 	if err != nil {
-		log.Error(err)
+		logger.Error(err)
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
@@ -751,16 +755,17 @@ func (s *server) putChunked(ctx context.Context, w http.ResponseWriter, r *http.
 
 	tmpFn, tmpFile, err := s.tmpFile()
 	if err != nil {
-		log.Error(err)
+		logger.Error(err)
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
+	defer tmpFile.Close()
 
 	logger.Infof("created tmp file %s", tmpFn)
 
 	_, err = io.Copy(tmpFile, r.Body)
 	if err != nil {
-		log.Error(err)
+		logger.Error(err)
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
@@ -778,7 +783,7 @@ func (s *server) putChunked(ctx context.Context, w http.ResponseWriter, r *http.
 
 	chunkFolder, err := s.getChunkFolder(chunkInfo)
 	if err != nil {
-		log.Error(err)
+		logger.Error(err)
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
@@ -811,9 +816,9 @@ func (s *server) putChunked(ctx context.Context, w http.ResponseWriter, r *http.
 		return
 	}
 
-	logger.Infof("opened chunk folder %s", chunkFolder)
-
 	defer fdChunkFolder.Close()
+
+	logger.Infof("opened chunk folder %s", chunkFolder)
 
 	fns, err := fdChunkFolder.Readdirnames(-1)
 	if err != nil {
@@ -837,6 +842,8 @@ func (s *server) putChunked(ctx context.Context, w http.ResponseWriter, r *http.
 		return
 	}
 
+	defer assemblyFile.Close()
+
 	logger.Infof("created assembly file at %s", assemblyFn)
 
 	for chunk := 0; chunk < int(chunkInfo.TotalChunks); chunk++ {
@@ -853,6 +860,7 @@ func (s *server) putChunked(ctx context.Context, w http.ResponseWriter, r *http.
 			return
 		}
 
+		defer fdChunk.Close()
 		logger.Infof("opened chunk at %s", cp)
 
 		_, err = io.Copy(assemblyFile, fdChunk)
@@ -874,6 +882,15 @@ func (s *server) putChunked(ctx context.Context, w http.ResponseWriter, r *http.
 		logger.Infof("copied chunk %s into assembly file %s", cp, assemblyFn)
 	}
 
+	// Now that the chunks are assembled into one larger file
+	// we can remove the chunk folder to free space
+	defer func() {
+		err := os.RemoveAll(chunkFolder)
+		if err != nil {
+			log.Error(err)
+		}
+	}()
+
 	// Point fd to beginning of file to start copying
 	_, err = assemblyFile.Seek(0, 0)
 	if err != nil {
@@ -894,13 +911,14 @@ func (s *server) putChunked(ctx context.Context, w http.ResponseWriter, r *http.
 		return
 	}
 
+	req.Close = true
 	req.Header.Add("Authorization", "Bearer "+authlib.MustFromTokenContext(ctx))
 	req.Header.Add("CIO-Checksum", r.Header.Get("OC-Checksum"))
 	req.Header.Add("CIO-TraceID", logger.Data["trace"].(string))
 
 	res, err := c.Do(req)
 	if err != nil {
-		log.Error(err)
+		logger.Error(err)
 		http.Error(w, "", http.StatusInternalServerError)
 		return
 	}
@@ -913,6 +931,15 @@ func (s *server) putChunked(ctx context.Context, w http.ResponseWriter, r *http.
 		w.WriteHeader(res.StatusCode)
 		return
 	}
+
+	// The assembled file has been uploaded correctly so
+	// we can free space
+	defer func() {
+		err := os.RemoveAll(assemblyFn)
+		if err != nil {
+			log.Error(err)
+		}
+	}()
 
 	meta, err := getMeta(ctx, s.p.metaServer, chunkInfo.ResourcePath, false)
 	if err != nil {
@@ -1045,7 +1072,6 @@ func (s *server) authHandler(ctx context.Context, w http.ResponseWriter, r *http
 		}
 
 		logger.Infof("basic auth successful for username %s", user)
-		// TODO(labkode) Set cookie
 
 		idt, err := authlib.ParseToken(res.Token, s.p.sharedSecret)
 		if err != nil {
@@ -1055,6 +1081,12 @@ func (s *server) authHandler(ctx context.Context, w http.ResponseWriter, r *http
 		}
 
 		logger.Info(idt)
+
+		cookie := &http.Cookie{}
+		cookie.Name = "OC_SessionPassphrase"
+		cookie.Value = res.Token
+
+		http.SetCookie(w, cookie)
 
 		// token added to the request because when proxied
 		// no all servers will handle basic auth, but all will handle
