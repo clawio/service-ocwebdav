@@ -55,7 +55,12 @@ type server struct {
 
 func (s *server) ServeHTTPC(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 
-	traceID := getTraceID(r)
+	traceID, err := getTraceID(r)
+	if err != nil {
+		log.Error("cannot get trace ID")
+		http.Error(w, "", http.StatusInternalServerError)
+		return
+	}
 	reqLogger := log.WithField("trace", traceID).WithField("svc", serviceID)
 	ctx = NewLogContext(ctx, reqLogger)
 	ctx = newGRPCTraceContext(ctx, traceID)

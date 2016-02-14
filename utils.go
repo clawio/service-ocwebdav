@@ -1,10 +1,10 @@
 package main
 
 import (
-	"code.google.com/p/go-uuid/uuid"
 	"fmt"
 	authlib "github.com/clawio/service-auth/lib"
 	metapb "github.com/clawio/service-ocwebdav/proto/metadata"
+	"github.com/nu7hatch/gouuid"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -58,12 +58,16 @@ func getConnection(addr string) (*grpc.ClientConn, error) {
 
 // getTraceID returns the traceID that comes in the request
 // or generate a new one
-func getTraceID(r *http.Request) string {
+func getTraceID(r *http.Request) (string, error) {
 	traceID := r.Header.Get("CIO-TraceID")
 	if traceID == "" {
-		return uuid.New()
+		u, err := uuid.NewV4()
+		if err != nil {
+			return "", err
+		}
+		return u.String(), nil
 	}
-	return traceID
+	return traceID, nil
 }
 
 // The key type is unexported to prevent collisions with context keys defined in
@@ -123,25 +127,6 @@ func newGRPCTraceContext(ctx context.Context, trace string) context.Context {
 	md := metadata.Pairs("trace", trace)
 	ctx = metadata.NewContext(ctx, md)
 	return ctx
-}
-
-func getGRPCTraceID(ctx context.Context) string {
-
-	md, ok := metadata.FromContext(ctx)
-	if !ok {
-		return uuid.New()
-	}
-
-	tokens := md["trace"]
-	if len(tokens) == 0 {
-		return uuid.New()
-	}
-
-	if tokens[0] != "" {
-		return tokens[0]
-	}
-
-	return uuid.New()
 }
 
 type chunkPathInfo struct {

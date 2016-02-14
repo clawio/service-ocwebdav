@@ -17,6 +17,7 @@ const (
 	metaServerEnvar   = serviceID + "_META"
 	portEnvar         = serviceID + "_PORT"
 	tmpDirEnvar       = serviceID + "_TMPDIR"
+	logLevelEnvar     = serviceID + "_LOGLEVEL"
 	sharedSecretEnvar = "CLAWIO_SHAREDSECRET"
 
 	endPoint = "/"
@@ -28,6 +29,7 @@ type environ struct {
 	metaServer   string
 	port         int
 	tmpDir       string
+	logLevel     string
 	sharedSecret string
 }
 
@@ -43,6 +45,7 @@ func getEnviron() (*environ, error) {
 	e.dataServer = os.Getenv(dataServerEnvar)
 	e.metaServer = os.Getenv(metaServerEnvar)
 	e.tmpDir = os.Getenv(tmpDirEnvar)
+	e.logLevel = os.Getenv(logLevelEnvar)
 	return e, nil
 }
 
@@ -53,6 +56,14 @@ func main() {
 		log.Error(err)
 		os.Exit(1)
 	}
+
+	l, err := log.ParseLevel(env.logLevel)
+	if err != nil {
+		l = log.ErrorLevel
+	}
+	log.SetLevel(l)
+
+	log.Infof("Service %s started", serviceID)
 
 	log.Infof("%s=%s", tmpDirEnvar, env.tmpDir)
 	log.Infof("%s=%s", authServerEnvar, env.authServer)

@@ -3,4 +3,6 @@ export CLAWIO_OCWEBDAV_PORT=57004
 export CLAWIO_OCWEBDAV_AUTH="service-auth:57000"
 export CLAWIO_OCWEBDAV_META="service-localfs-meta:57001"
 export CLAWIO_OCWEBDAV_DATA="http://service-localfs-data:57002"
+export CLAWIO_OCWEBDAV_DATA="http://service-localfs-data:57002"
+export CLAWIO_OCWEBDAV_LOGLEVEL="error"
 export CLAWIO_SHAREDSECRET=secret

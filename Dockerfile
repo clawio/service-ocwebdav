@@ -6,6 +6,7 @@ ENV CLAWIO_OCWEBDAV_PORT 57004
 ENV CLAWIO_OCWEBDAV_AUTH "service-auth:57000"
 ENV CLAWIO_OCWEBDAV_META "service-localfs-meta:57001"
 ENV CLAWIO_OCWEBDAV_DATA "http://service-localfs-data:57002"
+ENV CLAWIO_OCWEBDAV_LOGLEVEL "error"
 ENV CLAWIO_SHAREDSECRET secret
 
 ADD . /go/src/github.com/clawio/service-ocwebdav
